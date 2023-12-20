@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 )
 
 func check(e error) {
@@ -61,11 +62,6 @@ func getLowestLocations(lines []string) [][]int {
 
 	}
 
-	fmt.Println("Sorted location ranges:")
-	for i := range mappings {
-		fmt.Printf(" - Dest: %v\n", mappings[i][0])
-	}
-
 	return mappings
 }
 
@@ -89,6 +85,7 @@ func main() {
 
 	highestValue := lowestLocations[len(lowestLocations)-1][0] + lowestLocations[len(lowestLocations)-1][2]
 	fmt.Printf("Highest value is %v\n", highestValue)
+
 	// First loop to get the total length of the array.
 	for i, seed := range rawSeeds {
 		val, err := strconv.Atoi(seed)
@@ -112,100 +109,68 @@ func main() {
 		}
 	}
 
-	// If true this means we found a maétch. Avoid more computation until next block.
+	// If true this means we found a match. Avoid more computation until next block.
 	// Starts at true because we do not want to parse the location block, we already did.
-	skipUntilNextBlock := true
-	// found := false
-	// for _, locationRange := range lowestLocations {
-	// 	for currentLocation := locationRange[0]; currentLocation < locationRange[1]-1; currentLocation++ {
-	for currentLocation := 0; currentLocation < highestValue; currentLocation++ {
-		value := currentLocation
-		//fmt.Printf("\n\nIs location %v valid ?\n", value)
+	startTime := time.Now()
+	stepTime := startTime
 
-		// Going reverse from bottom-up
-		for i := len(lines) - 2; i > 0; i-- {
-			//			fmt.Printf("=== Processing line: %v\n", line)
-			//			fmt.Printf("Should skip ? %v\n", skipUntilNextBlock)
-			// Line found = starts end of current block and start looking at mappings again.
+	mappings := make([][][]int, 0)
+	currentMapping := make([][]int, 0)
+	currentBlock := 0
+
+	// Put all mappings in precalculated array.
+	for i := len(lines) - 2; i > 0; i-- {
+		if lines[i] == "" || IsLetter(string(lines[i][0])) {
 			if lines[i] == "" {
-				// fmt.Println(" - ! Skipping empty line...")
-				skipUntilNextBlock = false
-				continue
-				// If we should skip or block is letters, avoid weird parsings.
-			} else if skipUntilNextBlock || IsLetter(string(lines[i][0])) {
-				// fmt.Println(" - Skipping because we need to!")
-				//	if IsLetter(string(line[0])) {
-				//	fmt.Printf("= Result after block %v: %v\n", line, value)
-				//}
-
-				continue
+				currentBlock++
 			}
 
-			// Stores current line as mapping in int array.
-			mapRanges := make([]int, 3)
-
-			for i, s := range strings.Split(strings.Trim(lines[i], " "), " ") {
-				val, err := strconv.Atoi(s)
-				check(err)
-				mapRanges[i] = val
-			}
-			if mapRanges[0] == 1 && mapRanges[1] == 0 && mapRanges[2] == 69 {
-				fmt.Println(currentLocation)
-				fmt.Println(currentLocation >= mapRanges[0])
-				fmt.Println(currentLocation < mapRanges[0]+mapRanges[2])
-				fmt.Println(value)
-				fmt.Println(mapRanges[1] - mapRanges[0])
-			}
-
-			// If current location is in the range of the current mapping, update it.
-			if value >= mapRanges[0] && value < mapRanges[0]+mapRanges[2] {
-				value += mapRanges[1] - mapRanges[0]
-				skipUntilNextBlock = true
-			}
+			mappings = append(mappings, currentMapping)
+			currentMapping = make([][]int, 0)
+			continue
 		}
 
-		// // Name of the map block, prints and skips to actual values.
-		// if skipNext {
-		// 	skipNext = false
-		// 	continue
-		// }
+		mappingRanges := make([]int, 3)
 
-		// mapRanges := make([]int, 3)
+		for j, s := range strings.Split(strings.Trim(lines[i], " "), " ") {
+			val, err := strconv.Atoi(s)
+			check(err)
+			mappingRanges[j] = val
+		}
 
-		// // Convert strings values to int.
-		// for i, s := range strings.Split(strings.Trim(line, " "), " ") {
-		// 	val, err := strconv.Atoi(s)
-		// 	check(err)
-		// 	mapRanges[i] = val
-		// }
+		currentMapping = append(currentMapping, mappingRanges)
+	}
 
-		// // Update indexes based on map values.
-		// for i, v := range indexes {
-		// 	if !updateIndexes[i] && v < mapRanges[1]+mapRanges[2] && v >= mapRanges[1] {
-		// 		indexes[i] += mapRanges[0] - mapRanges[1]
-		// 		updateIndexes[i] = true
-		// 	}
-		// }
+	step := 100000
+
+	fmt.Printf("Going to process %v lines (%v steps)\n", highestValue, highestValue/step)
+
+	for currentLocation := 0; currentLocation < highestValue; currentLocation++ {
+		if currentLocation%step == 0 {
+			fmt.Printf(" - %v done (step took %v)\n", currentLocation, time.Since(stepTime))
+			stepTime = time.Now()
+		}
+
+		value := currentLocation
+
+		for i := 0; i < len(mappings); {
+			for j := 0; j < len(mappings[i]); j++ {
+				if value >= mappings[i][j][0] && value < mappings[i][j][0]+mappings[i][j][2] {
+					//					fmt.Printf("Value %v matched %v\n", value, mappings[i][j])
+					value += mappings[i][j][1] - mappings[i][j][0]
+					i++
+					break
+				}
+			}
+
+			i++
+		}
 
 		if isSeedValid(seeds, value) {
-			// found = true
 			fmt.Printf("Found it ! It's %v (seed: %v)\n", currentLocation, value)
 			break
 		}
 	}
 
-	// fmt.Printf("End values: %v\n", indexes)
-
-	// minVal := indexes[0]
-	// for _, v := range indexes {
-	// 	if v < minVal {
-	// 		minVal = v
-	// 	}
-	// }
-	// if found {
-	// 	break
-	// }
-	// }
-
-	// fmt.Printf("Lowest value is %v\n", minVal)
+	fmt.Printf("Done in %v\n", time.Since(startTime))
 }
